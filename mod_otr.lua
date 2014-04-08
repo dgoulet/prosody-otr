@@ -53,9 +53,9 @@ local function check_message_otr(event)
 
 	-- Warn if NO otr is detected and if we've NOT warned before the user.
 	if optional and messaged[session.full_jid] == nil and is_otr == 0 then
-        event.origin.send(st.message{ type = "chat", from = module.host, to = event.stanza.attr.from }:tag("body"):text(optional_msg));
+		event.origin.send(st.message{ type = "chat", from = module.host, to = event.stanza.attr.from }:tag("body"):text(optional_msg));
 		messaged[session.full_jid] = 1
-    end
+	end
 end
 
 -- Module load entry point.

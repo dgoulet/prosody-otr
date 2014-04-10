@@ -31,30 +31,65 @@ local optional_msg = "For security reasons, OTR encryption is STRONGLY recommend
 
 local messaged = {};
 
+local log = module._log;
+
+local function strip_full_jid(jid)
+	local offset = string.find(jid, "/");
+	if offset == nil then
+		return jid;
+	end
+
+	return string.sub(jid, 0, offset - 1);
+end
+
 --
 -- Check body message for the presence of the OTR tag.
 local function check_message_otr(event)
-    local body = event.stanza:get_child_text("body");
-	local session = event.origin;
-	local is_otr;
+	local session, stanza = event.origin, event.stanza;
+    local body = stanza:get_child_text("body");
+	local is_otr, jid;
 
-	-- Is this body is an OTR message?
-	if body and body:sub(1,4) ~= "?OTR" then
-		is_otr = 0;
-	else
-		is_otr = 1;
+	-- No origin for the message, well it's not supposed to happen
+	-- to we stop the message right away.
+	if stanza.attr.from == nil then
+		return true;
+	end
+	jid = strip_full_jid(stanza.attr.from);
+
+	-- Continue processing the signal if no body is found since
+	-- we can't enforce OTR with an empty payload.
+	if body == nil then
+		return nil;
+	end
+
+	-- If message is OTR, just pass the signal.
+	if body:sub(1,4) == "?OTR" then
+		return nil;
 	end
 
 	-- Force OTR if policy is mandatory.
-	if mandatory and is_otr == 0 then
+	if mandatory then
+		-- Inform client that OTR is mandatory and stop signal.
 		event.origin.send(st.message{ type = "chat", from = module.host, to = event.stanza.attr.from }:tag("body"):text(mandatory_msg));
 		return true;
 	end
 
 	-- Warn if NO otr is detected and if we've NOT warned before the user.
-	if optional and messaged[session.full_jid] == nil and is_otr == 0 then
+	if optional and messaged[jid] == nil then
 		event.origin.send(st.message{ type = "chat", from = module.host, to = event.stanza.attr.from }:tag("body"):text(optional_msg));
-		messaged[session.full_jid] = 1
+		messaged[jid] = 1
+		return nil;
+	end
+end
+
+--
+-- Handle presence signal. This function will nullify the JID that
+-- becomes unavailable so next time the user connects, the message will
+-- be displayes again.
+local function handle_presence(event)
+	local jid = strip_full_jid(event.stanza.attr.from);
+	if event.stanza.attr.type == "unavailable" then
+		messaged[jid] = nil;
 	end
 end
 
@@ -74,6 +109,13 @@ function module.load()
 	module:log("info", "OTR policy set to %s", policy);
 end
 
-module:hook("message/bare", check_message_otr, 300);
-module:hook("message/full", check_message_otr, 300);
-module:hook("message/host", check_message_otr, 300);
+module:hook("message/bare", check_message_otr, 1000);
+module:hook("message/full", check_message_otr, 1000);
+module:hook("message/host", check_message_otr, 1000);
+
+module:hook("pre-message/bare", check_message_otr, 1000);
+module:hook("pre-message/full", check_message_otr, 1000);
+
+module:hook("presence/bare", handle_presence, 1000);
+module:hook("presence/full", handle_presence, 1000);
+module:hook("presence/host", handle_presence, 1000);

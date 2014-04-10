@@ -87,8 +87,16 @@ end
 -- becomes unavailable so next time the user connects, the message will
 -- be displayes again.
 local function handle_presence(event)
-	local jid = strip_full_jid(event.stanza.attr.from);
+	local jid;
+
+	-- Continue signal, mandatory policy does not require us to 
+	-- remove the "messaged" entry.
+	if mandatory then
+		return nil;
+	end
+
 	if event.stanza.attr.type == "unavailable" then
+		jid = strip_full_jid(event.stanza.attr.from);
 		messaged[jid] = nil;
 	end
 end

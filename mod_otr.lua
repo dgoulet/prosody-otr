@@ -58,8 +58,8 @@ local function check_message_otr(event)
 
 	-- Continue processing the signal if no body is found since
 	-- we can't enforce OTR with an empty payload or if the message
-	-- is meant for a groupchat.
-	if body == nil or stanza.attr.type == "groupchat" then
+	-- is meant for a groupchat and the policy does not enforce OTR.
+	if body == nil or (stanza.attr.type == "groupchat" and not mandatory) then
 		return nil;
 	end
 

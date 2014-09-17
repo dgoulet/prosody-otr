@@ -20,14 +20,17 @@ local st = require "util.stanza";
 -- Module option.
 -- 
 -- This tells the module policy which for now there is two choices.
---		mandatory: OTR will be enforced
+--		mandatory: OTR will be enforced. MUC will not work.
 --		optional:  Warn user to suggest OTR. (default)
+--		mixed: OTR will be enforced in all but MUC.
 local policy = module:get_option_string("otr_policy", "optional");
 
 local mandatory;
 local mandatory_msg = "For security reasons, OTR encryption is required for conversations on this server";
 local optional;
 local optional_msg = "For security reasons, OTR encryption is STRONGLY recommended for conversations on this server";
+local mixed;
+local muc_msg = "Beware, Multi-User Chat is not supported by OTR."
 
 local messaged = {};
 
@@ -56,10 +59,9 @@ local function check_message_otr(event)
 	end
 	jid = strip_full_jid(stanza.attr.from);
 
-	-- Continue processing the signal if no body is found since
-	-- we can't enforce OTR with an empty payload or if the message
-	-- is meant for a groupchat and the policy does not enforce OTR.
-	if body == nil or (stanza.attr.type == "groupchat" and not mandatory) then
+	-- Continue processing the signal if no body is found since we can't
+	-- enforce OTR with an empty payload.
+	if body == nil then
 		return nil;
 	end
 
@@ -68,8 +70,19 @@ local function check_message_otr(event)
 		return nil;
 	end
 
-	-- Force OTR if policy is mandatory.
-	if mandatory then
+	-- Warn the user that OTR will not work on MUC but let the message pass.
+	-- Available for optional and mixed mode.
+	if stanza.attr.type == "groupchat" and not mandatory then
+		-- Warn once.
+		if messaged[jid] == nil then
+			event.origin.send(st.message{ type = "chat", from = module.host, to = event.stanza.attr.from }:tag("body"):text(muc_msg));
+			messaged[jid] = 1
+		end
+		return nil;
+	end
+
+	-- Force OTR on chats if policy is mandatory or mixed.
+	if stanza.attr.type == "chat" and not optional then
 		-- Inform client that OTR is mandatory and stop signal.
 		event.origin.send(st.message{ type = "chat", from = module.host, to = event.stanza.attr.from }:tag("body"):text(mandatory_msg));
 		return true;
@@ -109,6 +122,8 @@ function module.load()
 		mandatory = 1;
 	elseif policy == "optional" then
 		optional = 1;
+	elseif policy == "mixed" then
+		mixed = 1;
 	else
 		-- Invalid policy, stop loading module.
 		module:log("error", "Unknown policy %s", policy);

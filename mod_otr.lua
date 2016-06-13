@@ -80,6 +80,11 @@ local function check_message_otr(event)
 		return nil;
 	end
 
+	-- check xep373 pgp (OX) https://xmpp.org/extensions/xep-0373.html
+	if event.stanza:get_child("openpgp", "urn:xmpp:openpgp:0") then
+		return nil;
+	end
+
 	-- no valid encryption found
 
 	-- Warn the user that OTR will not work on MUC but let the message pass.

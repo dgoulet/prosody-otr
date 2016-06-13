@@ -26,11 +26,11 @@ local st = require "util.stanza";
 local policy = module:get_option_string("otr_policy", "optional");
 
 local mandatory;
-local mandatory_msg = "For security reasons, OTR encryption is required for conversations on this server";
+local mandatory_msg = "For security reasons, OTR, OMEMO, or PGP encryption is required for conversations on this server";
 local optional;
-local optional_msg = "For security reasons, OTR encryption is STRONGLY recommended for conversations on this server";
+local optional_msg = "For security reasons, OTR, OMEMO, or PGP encryption is STRONGLY recommended for conversations on this server";
 local mixed;
-local muc_msg = "Beware, Multi-User Chat is not supported by OTR."
+local muc_msg = "Beware, Multi-User Chat is not supported by OTR, but is supported by OMEMO or PGP in specific circumstances with some clients."
 
 local messaged = {};
 
@@ -69,6 +69,18 @@ local function check_message_otr(event)
 	if body:sub(1,4) == "?OTR" then
 		return nil;
 	end
+
+	-- check omemo https://xmpp.org/extensions/inbox/omemo.html
+	if event.stanza:get_child("encrypted", "eu.siacs.conversations.axolotl") or event.stanza:get_child("encrypted", "urn:xmpp:omemo:0") then
+		return nil;
+	end
+
+	-- check xep27 pgp https://xmpp.org/extensions/xep-0027.html
+	if event.stanza:get_child("x", "jabber:x:encrypted") then
+		return nil;
+	end
+
+	-- no valid encryption found
 
 	-- Warn the user that OTR will not work on MUC but let the message pass.
 	-- Available for optional and mixed mode.

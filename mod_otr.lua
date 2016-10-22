@@ -64,12 +64,6 @@ local function check_message_otr(event)
 	end
 	jid = strip_full_jid(stanza.attr.from);
 
-	-- Continue processing the signal if no body is found since we can't
-	-- enforce OTR with an empty payload.
-	if body == nil then
-		return nil;
-	end
-
 	-- If message is OTR, just pass the signal.
 	if body:sub(1,4) == "?OTR" then
 		return nil;

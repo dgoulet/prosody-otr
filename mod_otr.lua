@@ -52,6 +52,11 @@ local function check_message_otr(event)
     local body = stanza:get_child_text("body");
 	local is_otr, jid;
 
+	-- Do not warn for error status messages
+	if not body or event.stanza.attr.type == "error" then
+		return nil;
+	end
+
 	-- No origin for the message, well it's not supposed to happen
 	-- to we stop the message right away.
 	if stanza.attr.from == nil then

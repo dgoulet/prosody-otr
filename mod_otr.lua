@@ -23,14 +23,19 @@ local st = require "util.stanza";
 --		mandatory: OTR will be enforced. MUC will not work.
 --		optional:  Warn user to suggest OTR. (default)
 --		mixed: OTR will be enforced in all but MUC.
-local policy = module:get_option_string("otr_policy", "optional");
+local policy = module:get_option_string("e2e_policy", module:get_option_string("otr_policy", "optional"));
+
+local allow_otr = module:get_option_boolean("allow_otr", true);
+local allow_omemo = module:get_option_boolean("allow_omemo", true);
+local allow_xep27_pgp = module:get_option_boolean("allow_xep27_pgp", true);
+local allow_xep373_pgp = module:get_option_boolean("allow_xep373_pgp", true);
 
 local mandatory;
-local mandatory_msg = "For security reasons, OTR encryption is required for conversations on this server";
+local mandatory_msg = "For security reasons, OTR, OMEMO, or PGP encryption is required for conversations on this server";
 local optional;
-local optional_msg = "For security reasons, OTR encryption is STRONGLY recommended for conversations on this server";
+local optional_msg = "For security reasons, OTR, OMEMO, or PGP encryption is STRONGLY recommended for conversations on this server";
 local mixed;
-local muc_msg = "Beware, Multi-User Chat is not supported by OTR."
+local muc_msg = "Beware, Multi-User Chat is not supported by OTR, but is supported by OMEMO or PGP in specific circumstances with some clients."
 
 local messaged = {};
 
@@ -65,9 +70,26 @@ local function check_message_otr(event)
 	jid = strip_full_jid(stanza.attr.from);
 
 	-- If message is OTR, just pass the signal.
-	if body:sub(1,4) == "?OTR" then
+	if allow_otr and body:sub(1,4) == "?OTR" then
 		return nil;
 	end
+
+	-- check omemo https://xmpp.org/extensions/inbox/omemo.html
+	if allow_omemo and (event.stanza:get_child("encrypted", "eu.siacs.conversations.axolotl") or event.stanza:get_child("encrypted", "urn:xmpp:omemo:0")) then
+		return nil;
+	end
+
+	-- check xep27 pgp https://xmpp.org/extensions/xep-0027.html
+	if allow_xep27_pgp and event.stanza:get_child("x", "jabber:x:encrypted") then
+		return nil;
+	end
+
+	-- check xep373 pgp (OX) https://xmpp.org/extensions/xep-0373.html
+	if allow_xep373_pgp and event.stanza:get_child("openpgp", "urn:xmpp:openpgp:0") then
+		return nil;
+	end
+
+	-- no valid encryption found
 
 	-- Warn the user that OTR will not work on MUC but let the message pass.
 	-- Available for optional and mixed mode.
